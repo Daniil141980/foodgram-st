@@ -20,7 +20,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-u0v(e@_sf1zjexdg24%d30czi=+3+%q3ue$2z(9-7r!sq7(n3('
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-default-key-for-dev')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -78,8 +78,12 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        "ENGINE": os.getenv("DB_ENGINE", default="django.db.backends.sqlite3"),
+        "NAME": os.getenv("POSTGRES_DB", default=(BASE_DIR / "db.sqlite3")),
+        "USER": os.getenv("POSTGRES_USER", default=None),
+        "PASSWORD": os.getenv("POSTGRES_PASSWORD", default=None),
+        "HOST": os.getenv("DB_HOST", default=None),
+        "PORT": os.getenv("DB_PORT", default=None),
     }
 }
 
