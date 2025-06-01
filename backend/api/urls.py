@@ -1,20 +1,16 @@
 from django.urls import include, path
-from recipes.views import RecipeViewSet, IngredientViewSet
-from rest_framework import routers
+from rest_framework.routers import DefaultRouter
 
-from .views import UserViewSet, AvatarUpdateView
+from .views import IngredientViewSet, RecipeViewSet, UserViewSet
 
-router = routers.DefaultRouter()
-router.register("users", UserViewSet, basename="users")
-router.register("recipes", RecipeViewSet, basename="recipes")
-router.register("ingredients", IngredientViewSet, basename="ingredients")
-app_name = "api"
+app_name = 'api'
+
+router = DefaultRouter()
+router.register('users', UserViewSet, basename='users')
+router.register('ingredients', IngredientViewSet, basename='ingredients')
+router.register('recipes', RecipeViewSet, basename='recipes')
 
 urlpatterns = [
-    path('users/me/avatar/', AvatarUpdateView.as_view(), name='avatar-update'),
-
-    path("", include(router.urls)),
-
-    path("", include("djoser.urls")),
-    path("auth/", include("djoser.urls.authtoken")),
+    path('', include(router.urls)),
+    path('auth/', include('djoser.urls.authtoken')),
 ]
