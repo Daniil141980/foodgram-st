@@ -2,12 +2,14 @@ from base64 import b64decode
 
 from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
-from django.core.validators import MinValueValidator
-from foodmanager.models import (Ingredient, Recipe, Favorite,
-                                RecipeIngredient, Subscription, ShoppingCart)
+from django.core.validators import MinValueValidator, MaxValueValidator
+from foodmanager.models import (Ingredient, Recipe, RecipeIngredient, Subscription)
 from rest_framework import serializers
 
 User = get_user_model()
+
+MIN_VALID = 1
+MAX_VALID = 32000
 
 
 class IngredientSerializer(serializers.ModelSerializer):
@@ -25,8 +27,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
                   'password')
 
     def create(self, validated_data):
-        user = User.objects.create_user(**validated_data)
-        return user
+        return User.objects.create_user(**validated_data)
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -41,9 +42,7 @@ class UserSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if not request or request.user.is_anonymous:
             return False
-        return Subscription.objects.filter(
-            user=request.user, author=obj
-        ).exists()
+        return obj.subscribers.filter(user=request.user).exists()
 
 
 class PasswordSerializer(serializers.Serializer):
@@ -70,21 +69,31 @@ class Base64ImageField(serializers.ImageField):
         return super().to_internal_value(data)
 
 
+class IngredientCreateSerializer(serializers.ModelSerializer):
+    id = serializers.PrimaryKeyRelatedField(
+        queryset=Ingredient.objects.all(),
+    )
+    amount = serializers.IntegerField(
+        validators=[
+            MinValueValidator(MIN_VALID),
+            MaxValueValidator(MAX_VALID)
+        ]
+    )
+
+    class Meta:
+        model = RecipeIngredient
+        fields = ('id', 'amount')
+
+
 class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
-    class IngredientCreateSerializer(serializers.ModelSerializer):
-        id = serializers.PrimaryKeyRelatedField(
-            queryset=Ingredient.objects.all(),
-        )
-        amount = serializers.IntegerField(
-            validators=[MinValueValidator(1)]
-        )
-
-        class Meta:
-            model = RecipeIngredient
-            fields = ('id', 'amount')
-
     ingredients = IngredientCreateSerializer(many=True)
     image = Base64ImageField()
+    cooking_time = serializers.IntegerField(
+        validators=[
+            MinValueValidator(MIN_VALID),
+            MaxValueValidator(MAX_VALID)
+        ]
+    )
 
     class Meta:
         model = Recipe
@@ -143,18 +152,19 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
         ).data
 
 
+class IngredientInRecipeSerializer(serializers.ModelSerializer):
+    id = serializers.ReadOnlyField(source='ingredient.id')
+    name = serializers.ReadOnlyField(source='ingredient.name')
+    measurement_unit = serializers.ReadOnlyField(
+        source='ingredient.measurement_unit'
+    )
+
+    class Meta:
+        model = RecipeIngredient
+        fields = ('id', 'name', 'measurement_unit', 'amount')
+
+
 class RecipeSerializer(serializers.ModelSerializer):
-    class IngredientInRecipeSerializer(serializers.ModelSerializer):
-        id = serializers.ReadOnlyField(source='ingredient.id')
-        name = serializers.ReadOnlyField(source='ingredient.name')
-        measurement_unit = serializers.ReadOnlyField(
-            source='ingredient.measurement_unit'
-        )
-
-        class Meta:
-            model = RecipeIngredient
-            fields = ('id', 'name', 'measurement_unit', 'amount')
-
     author = UserSerializer(read_only=True)
     ingredients = IngredientInRecipeSerializer(
         source='recipe_ingredients',
@@ -175,17 +185,13 @@ class RecipeSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if not request or request.user.is_anonymous:
             return False
-        return Favorite.objects.filter(
-            user=request.user, recipe=obj
-        ).exists()
+        return request.user.favorites.filter(recipe=obj).exists()
 
     def get_is_in_shopping_cart(self, obj):
         request = self.context.get('request')
         if not request or request.user.is_anonymous:
             return False
-        return ShoppingCart.objects.filter(
-            user=request.user, recipe=obj
-        ).exists()
+        return request.user.shopping_cart.filter(recipe=obj).exists()
 
 
 class RecipeMinSerializer(serializers.ModelSerializer):
@@ -242,3 +248,20 @@ class RecipeShortLinkSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         ret = super().to_representation(instance)
         return {'short-link': ret['short_link']}
+
+
+class SubscriptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Subscription
+        fields = ('user', 'author')
+
+    def validate(self, data):
+        if data['user'] == data['author']:
+            raise serializers.ValidationError(
+                'Нельзя подписаться на самого себя.'
+            )
+        if Subscription.objects.filter(user=data['user'], author=data['author']).exists():
+            raise serializers.ValidationError(
+                'Вы уже подписаны на этого пользователя.'
+            )
+        return data

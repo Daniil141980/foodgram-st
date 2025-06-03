@@ -1,8 +1,11 @@
 from django.contrib.auth.models import AbstractUser
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from slugify import slugify
+
+MIN_VALID = 1
+MAX_VALID = 32000
 
 
 class Ingredient(models.Model):
@@ -89,7 +92,10 @@ class Recipe(models.Model):
     )
     cooking_time = models.PositiveSmallIntegerField(
         _('Время приготовления (в минутах)'),
-        validators=[MinValueValidator(1)]
+        validators=[
+            MinValueValidator(MIN_VALID),
+            MaxValueValidator(MAX_VALID)
+        ]
     )
     created_at = models.DateTimeField(
         _('Дата создания'),
@@ -133,6 +139,7 @@ class Favorite(models.Model):
     class Meta:
         verbose_name = _('Избранное')
         verbose_name_plural = _('Избранное')
+        ordering = ['-id']
         constraints = [
             models.UniqueConstraint(
                 fields=['user', 'recipe'],
@@ -159,12 +166,16 @@ class RecipeIngredient(models.Model):
     )
     amount = models.PositiveSmallIntegerField(
         _('Количество'),
-        validators=[MinValueValidator(1)]
+        validators=[
+            MinValueValidator(MIN_VALID),
+            MaxValueValidator(MAX_VALID)
+        ]
     )
 
     class Meta:
         verbose_name = _('Ингредиент в рецепте')
         verbose_name_plural = _('Ингредиенты в рецепте')
+        ordering = ['recipe', 'ingredient']
         constraints = [
             models.UniqueConstraint(
                 fields=['recipe', 'ingredient'],
@@ -193,6 +204,7 @@ class Subscription(models.Model):
     class Meta:
         verbose_name = _('Подписка')
         verbose_name_plural = _('Подписки')
+        ordering = ['-id']
         constraints = [
             models.UniqueConstraint(
                 fields=['user', 'author'],
@@ -225,6 +237,7 @@ class ShoppingCart(models.Model):
     class Meta:
         verbose_name = _('Список покупок')
         verbose_name_plural = _('Списки покупок')
+        ordering = ['-id']
         constraints = [
             models.UniqueConstraint(
                 fields=['user', 'recipe'],
